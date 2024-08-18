@@ -67,8 +67,6 @@ def preprocessing():
 preprocessing()
 
 
-
-
 ## Lecture search
 def serachLecture(code: str):
     isReady = False
@@ -138,10 +136,6 @@ def removeCourse(course : Lecture):
     
     return success
             
-    
-    
-    
-    
 
 #app
 app = FastAPI()
