@@ -14,6 +14,7 @@ class Lecture(BaseModel):
     
 DB_path = "./datasets/GIST24-2.csv"
 DB = []
+
 def preprocessing():
 
     #get info of courses / data-type : pandas.DataFrame
@@ -68,7 +69,14 @@ preprocessing()
 
 
 ## Lecture search
-def serachLecture(code: str):
+def serachLecture(data : dict):
+    
+    # code only input -> return single or multi element arrays
+    # code and name input -> return single or multi element arrays 
+    
+    code = data['code'] # str
+    name = data['name'] # str or None
+    
     isReady = False
     target_list = []
     
@@ -80,7 +88,15 @@ def serachLecture(code: str):
     if isReady is False:
         return {'isExist' : False}
     else:
-        return {'isExist' : True, 'courses' : target_list}
+        if name == None:
+            return {'isExist' : True, 'courses' : target_list}
+        else:
+            for lec in target_list:
+                if data['name'] in lec['lec'].name:
+                    return {'isExist' : True, 'courses' : [lec['lec']]}
+            
+            return {'isExist' : True, 'courses' : target_list}
+                    
 
 def all_lecture():
     return DB
@@ -103,8 +119,8 @@ period5 = ['1600-1730', '', '', '', '', '']
 timeTable = [period1, period2, lunch, period3, period4, period5]
 
 
-def addCourse(course : Lecture):
-    day, time = course['lec'].time
+def addCourse(course : dict):
+    day, time = course.time
     course_days = list(filter(lambda x : day[x] == True, range(len(day))))
     course_times = list(filter(lambda x : time[x] == True, range(len(time))))
     
@@ -121,12 +137,12 @@ def addCourse(course : Lecture):
     
     for course_time in course_times:
         for course_day in course_days:    
-            timeTable[course_time][course_day + 1] = course['lec'].name
+            timeTable[course_time][course_day + 1] = course.name
     
     return True
 
 def removeCourse(course : Lecture):
-    name = course['lec'].name
+    name = course.name
     success = True
     
     for period_cnt, period in enumerate(timeTable):
@@ -145,10 +161,11 @@ app = FastAPI()
 def read_root():
     return {"Hello" : "World!"}
 
+
 #Courses api
-@app.get('/course-search/{lecture_id}')
-def getLecture(lecture_id : str):
-    return serachLecture(lecture_id)
+@app.get('/course-search/{lecture_code}')
+def getLecture(lecture_code : str):
+    return serachLecture({"code" : lecture_code, "name" : None})
 
 @app.get("/course-all")
 def getAllLecture():
@@ -156,30 +173,55 @@ def getAllLecture():
 
 # Create - post
 @app.post("/course-add")
-def updateCourse(lecture : Lecture):
+def updateCourse(lecture : dict):
     before_lectures = len(DB)
-    DB.append(lecture)
+    new_lecture = Lecture(division=lecture['division'], code=lecture['code'], name=lecture['name'],
+                          professor=lecture['professor'], time=lecture['time'])
+    DB.append(new_lecture)
     after_lectures = len(DB)
     return {'status' : True, 'before_cnt' : before_lectures, 'after_cnt' : after_lectures}
 
 # Delete - delete
 @app.delete("/course-remove")
-def updateCourse(code : dict):
+def updateCourse(data : dict):
     lec_cnt = len(DB)
-    lec = serachLecture(code['id'])
+    lec = serachLecture({"code" : data['code'], "name" : data['name']})
     
     if lec['isExist'] == True:
-        DB.remove(lec['lec'])
-        return {'success' : True, 'before_lec' : lec_cnt, 'current_len' : len(DB) }
+        if len(lec['courses']) == 1:
+            DB.remove(lec['courses'][0])
+            return {'success' : True, 'before_lec' : lec_cnt, 'current_len' : len(DB) }
+        
+        elif data['name'] != None:
+            for lec_item in lec['courses']:
+                if data['name'] in lec_item.name:
+                    DB.remove(lec_item)
+                    return {'success' : True, 'before_lec' : lec_cnt, 'current_len' : len(DB) }
+                
+            return {'success' : False, 'before_lec' : lec_cnt, 'current_len' : len(DB) }
+        
+        return {'success' : False, 'before_lec' : lec_cnt, 'current_len' : len(DB) }
     else:
         return {'success' : False, 'before_lec' : lec_cnt, 'current_len' : len(DB) }
 
 # Update - put
 @app.put("/course-update")
-def updateCourse(new_course : dict):
-    lec = serachLecture(new_course['id'])
-    DB[lec['index']] = new_course
-    return {'success' : True, 'index' : lec['index']}
+def updateCourse(data : dict):
+    lec = serachLecture({"code" : data['code'], "name" : data['name']})
+    
+    if lec['isExist'] == False:
+        return {'success' : False, 'msg' : "does not exist."}
+    
+    if len(lec['courses']) == 1:
+        new_lecture = Lecture(division=data['division'], code=data['code'], name=data['name'],
+                          professor=data['professor'], time=data['time'])
+        DB[lec['courses'][0]['index']] = new_lecture
+        return {'success' : True, 'index' : lec['courses'][0]['index']}    
+    
+    else:
+        return {'success' : False, 'msg' : "pass the course name name exactly"}
+    
+    
 
 
 # timatable api
@@ -193,7 +235,7 @@ def addTimeTable(data : dict):
     
     code = data['code']
     name = data['name']
-    response = serachLecture(code=code)
+    response = serachLecture({"code" : code, "name" : name})
     if response['isExist'] == False:
         return {'success' : False, "msg" : "No Courses."}
     elif len(response['courses']) == 1:
@@ -213,7 +255,7 @@ def removeTimeTable(data : dict):
     
     code = data['code']
     name = data['name']
-    response = serachLecture(code=code)
+    response = serachLecture({"code" : code, "name" : name})
     
     if response['isExist'] == False:
         return {'success' : False, "msg" : "No Courses."}
