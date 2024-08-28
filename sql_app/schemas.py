@@ -23,47 +23,31 @@ class UserBase(BaseModel):
     email: str
 
 class UserCreate(UserBase):
+    name : str
     password: str
 
 class User(UserBase):
     id: int
     is_active: bool
     items: list[Item] = []
+    session_id : str
 
     class Config:
         orm_mode = True
 
 
 
-"""
-class ScheduleBase(BaseModel):
-    dayOfWeek : int
-    time : int
-    
-class ScheduleCreate(ScheduleBase):
-    pass
-
-class Schedule(ScheduleBase):
-    code : str
-    
-    # pydantic과 변환 가능
-    class Config:
-        orm_mdoe = True
-
-"""
-
 class CourseBase(BaseModel):
     code : str
-    name : str
-    division : Union[str, None]
-    professor : Union[str, None]
-    schedules : Union[List[Dict[str,str]], None] = []
+    name : str    
 
 class CourseCreate(CourseBase):
     pass
 
 class Course(CourseBase):
-
+    division : Union[str, None]
+    professor : Union[str, None]
+    schedules : Union[List[Dict[str,str]], None] = []
     class Config:
         orm_mode = True
         
@@ -77,7 +61,7 @@ class TimeTableCreate(TimeTableBase):
     pass
 
 class TimeTable(TimeTableBase):
-
+    id : int
     class Config:
         orm_mode = True
 
@@ -89,3 +73,10 @@ class UpdateTimeTable(BaseModel):
     
     class Config:
         orm_mode = True
+
+class SearchInfo(BaseModel):
+    name : Union[str, None]
+    code : Union[str, None]
+    
+    class Config:
+        orm_mode : True

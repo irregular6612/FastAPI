@@ -15,7 +15,7 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 def create_user(db: Session, user: schemas.UserCreate):
     fake_hashed_password = user.password + "notreallyhashed"
-    db_user = models.User(email=user.email, hashed_password=fake_hashed_password)
+    db_user = models.User(email=user.email, hashed_password=fake_hashed_password, name=user.name)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -34,8 +34,8 @@ def create_user_item(db: Session, item: schemas.ItemCreate, user_id: int):
     return db_item
 
 
-def get_course(db : Session, course_code : str):
-    return db.query(models.Course).filter(models.Course.code == course_code).first()
+def get_course(db : Session, code : str):
+    return db.query(models.Course).filter(models.Course.code == code).first()
 
 def get_courses(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Course).offset(skip).limit(limit).all()
@@ -73,8 +73,15 @@ def update_course(db : Session, course : schemas.Course):
 def get_timetable(db: Session, name : str):
     return db.query(models.TimeTable).filter(models.TimeTable.name == name).first()
     
-def create_timetable(db: Session, timetable: schemas.TimeTableCreate):
-    db_timetable = models.TimeTable(name = timetable.name, schedules = timetable.schedules)
+def create_timetable(db: Session, name: str):
+    sample_schedules = {"Mon":["", "", "", "", ""],
+                                  "Tue":["", "", "", "", ""],
+                                  "Wed":["", "", "", "", ""],
+                                  "Thu":["", "", "", "", ""],
+                                  "Fri":["", "", "", "", ""]
+                                }
+    
+    db_timetable = models.TimeTable(name = name, schedules = sample_schedules)
     db.add(db_timetable)
     db.commit()
     db.refresh(db_timetable)
@@ -95,18 +102,19 @@ def add_course(db: Session, course : schemas.Course, stu_name: str):
     for time in course.schedules:
         
         period = -1
-        if time["time"] == "0900~1030" : period = 0
-        if time["time"] == "1030~1200" : period = 1
-        if time["time"] == "1300~1430" : period = 2
-        if time["time"] == "1430~1600" : period = 3
-        if time["time"] == "1600~1730" : period = 4
+        tilde_idx =  time["time"].find("~")
+        if int(time["time"][:tilde_idx]) >= 900 and int(time["time"][tilde_idx+1:]) <= 1030: period = 0
+        if int(time["time"][:tilde_idx]) >= 1030 and int(time["time"][tilde_idx+1:]) <= 1200: period = 1
+        if int(time["time"][:tilde_idx]) >= 1300 and int(time["time"][tilde_idx+1:]) <= 1430: period = 2
+        if int(time["time"][:tilde_idx]) >= 1430 and int(time["time"][tilde_idx+1:]) <= 1600: period = 3
+        if int(time["time"][:tilde_idx]) >= 1600 and int(time["time"][tilde_idx+1:]) <= 1730: period = 4
         
         #db_timetables.schedules : {"Mon" : List, "Tue" : List, ...}
         if db_timetable.schedules[time["day"]][period] != "":
             return {"status" : False, "msg" : "Course are already at the time."}
         
         if period != -1:
-            new_timetable.schedules[time["day"]][period] = course.name + "\n" + time["time"]
+            new_timetable.schedules[time["day"]][period] = course.name + " (" + time["time"] + ")"
         
     db_timetable.schedules = new_timetable.schedules
     

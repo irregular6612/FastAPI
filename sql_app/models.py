@@ -10,10 +10,12 @@ class User(Base):
 
     id = Column(Integer, primary_key=True)
     email = Column(String, unique=True, index=True)
+    name = Column(String, index=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
 
     items = relationship("Item", back_populates="owner")
+    timetable = relationship("TimeTable", back_populates="owner")
 
 
 class Item(Base):
@@ -35,29 +37,12 @@ class Course(Base):
     professor = Column(String, index=True)
     schedules = Column(JSON, index=True)
     
-    #times = relationship("Schedule", back_populates="owner")
-    
 
 class TimeTable(Base):
     __tablename__ = "timetables"
     
-    name = Column(String, primary_key=True)
+    id = Column(Integer, primary_key=True)
     schedules = Column(JSON, index=True)
+    name = Column(Integer, ForeignKey("users.name"))
     
-    #times = relationship("Schedule", back_populates="owner")
-
-    
-"""
-class Schedule(Base):
-    __tablename__ = "schedules"
-    
-    dayOfWeek = Column(Integer, primary_key=True)
-    # 0900-1030 :1, 1030-1200 : 2, 1300-1430 : 3, 1430-1600 : 4, 1600-1730 : 5
-    time = Column(Integer, index=True)
-    code = Column(String, ForeignKey("courses.code"))
-    
-    owner = relationship("Course", back_populates="times")
-"""
-
-    
-    
+    owner = relationship("User", back_populates="timetable")
