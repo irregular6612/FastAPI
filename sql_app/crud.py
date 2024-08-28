@@ -2,7 +2,17 @@ from sqlalchemy.orm import Session
 from typing import Union
 from . import models, schemas
 import copy
+import random
+import string
 
+def create_cookie():
+    source = string.ascii_letters + string.digits
+    result = ''.join((random.choice(source) for i in range(10)))
+    return result
+
+
+    
+    
 
 def get_user(db: Session, user_id: int):
     return db.query(models.User).filter(models.User.id == user_id).first()
@@ -10,15 +20,31 @@ def get_user(db: Session, user_id: int):
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
 
+def get_user_by_name(db: Session, name : str):
+    return db.query(models.User).filter(models.User.name == name).first()
+
+def get_cookie(db: Session, name: str):
+    db_user = get_user_by_name(db, name = name)
+    return db_user.session_id
+
+def set_cookie(db: Session, name: str):
+    db_user = get_user_by_name(db, name=name)
+    db_user.session_id = create_cookie()
+    db.commit()
+    db.refresh(db_user)
+    return db_user.session_id
+
+
 def get_users(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.User).offset(skip).limit(limit).all()
 
 def create_user(db: Session, user: schemas.UserCreate):
-    fake_hashed_password = user.password + "notreallyhashed"
-    db_user = models.User(email=user.email, hashed_password=fake_hashed_password, name=user.name)
+    fake_hashed_password = user.password
+    db_user = models.User(email=user.email, hashed_password=fake_hashed_password, name=user.name, session_id = "")
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+    set_cookie(db, db_user.name)
     return db_user
 
 

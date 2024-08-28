@@ -13,7 +13,8 @@ class User(Base):
     name = Column(String, index=True)
     hashed_password = Column(String)
     is_active = Column(Boolean, default=True)
-
+    session_id = Column(String, index=True)
+    
     items = relationship("Item", back_populates="owner")
     timetable = relationship("TimeTable", back_populates="owner")
 

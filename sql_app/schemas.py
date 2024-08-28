@@ -16,8 +16,8 @@ class Item(ItemBase):
 
     class Config:
         orm_mode = True
-
-
+        
+        
 
 class UserBase(BaseModel):
     email: str
@@ -54,14 +54,14 @@ class Course(CourseBase):
  
 
 class TimeTableBase(BaseModel):
-    name : str
+    name : str = ""
     schedules : dict = {}
 
 class TimeTableCreate(TimeTableBase):
     pass
 
 class TimeTable(TimeTableBase):
-    id : int
+    id : int = 0
     class Config:
         orm_mode = True
 
@@ -80,3 +80,12 @@ class SearchInfo(BaseModel):
     
     class Config:
         orm_mode : True
+
+class LoginForm(BaseModel):
+    name : str
+    password : Union[str, None]
+    
+    class Config:
+        orm_mode : True
+    
+    
