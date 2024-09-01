@@ -5,6 +5,7 @@ from typing import Union
 
 from . import crud, models, schemas
 from .database import SessionLocal, engine
+import datetime
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -18,18 +19,35 @@ def get_db():
     finally:
         db.close()
         
-def verify_session():
+def get_current_timestr():
+    return datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+        
+def verify_session(request_session_id: str, session: schemas.Session):
+    
+    refresh_min = 10
+    
+    current_time = datetime.datetime.now()
+    last_access_time = session.last_access
+    last_access_time = datetime.datetime.strptime(last_access_time,'%Y-%m-%d %H:%M:%S')
+    
+    time_diff = current_time - last_access_time
+    
+    if time_diff.seconds / 60 > refresh_min:
+        return False
     return True
 
 
-@app.post("/users/", response_model=schemas.User)
+@app.post("/users/", response_model=schemas.UserBase)
 def create_user(user: schemas.UserCreate, response : Response, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
     
     db_user = crud.create_user(db=db, user=user)
-    response.set_cookie(key="session_id", value=db_user.session_id)
+    current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    db_session = crud.create_session(db=db, user_id=db_user.id, last_access=current_time)
+    response.set_cookie(key="session_id", value=db_user.session.session_id)
     return db_user
 
 
@@ -40,8 +58,8 @@ def read_users(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 
 
 @app.get("/users/{user_id}", response_model=schemas.User)
-def read_user(user_id: int, db: Session = Depends(get_db)):
-    db_user = crud.get_user(db, user_id=user_id)
+def read_user(user_id: str, db: Session = Depends(get_db)):
+    db_user = crud.get_user_by_id(db, user_id=user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return db_user
@@ -49,7 +67,7 @@ def read_user(user_id: int, db: Session = Depends(get_db)):
 
 @app.post("/users/{user_id}/items/", response_model=schemas.Item)
 def create_item_for_user(
-    user_id: int, item: schemas.ItemCreate, db: Session = Depends(get_db)
+    user_id: str, item: schemas.ItemCreate, db: Session = Depends(get_db)
 ):
     return crud.create_user_item(db=db, item=item, user_id=user_id)
 
@@ -61,27 +79,25 @@ def read_items(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
 
 @app.post("/login/", response_model=schemas.UserBase)
 def login(login_form : schemas.LoginForm, request: Request, response: Response, db: Session= Depends(get_db)):
-    db_user = crud.get_user_by_name(db, login_form.name)
+    db_user = crud.get_user_by_id(db, login_form.id)
     
     if db_user:
-        if db_user.hashed_password == login_form.password:
-            response.set_cookie(key="session_id", value=crud.get_cookie(db,db_user.name))
+        if db_user.password == login_form.password:
+            crud.set_cookie(db= db, session=db_user.session, last_access=get_current_timestr())
+            response.set_cookie(key="session_id", value=crud.get_cookie(db,db_user.id))
             return db_user
         else:
             raise HTTPException(status_code=400, detail="Wrong password")
     raise HTTPException(status_code=400, detail="No account")
 
-@app.post("/logout/", response_model=schemas.UserBase)
-def logout(logout_form : schemas.LoginForm, request: Request, response: Response, db: Session= Depends(get_db)):
-    db_user = crud.get_user_by_name(db, logout_form.name)
+@app.get("/logout/", response_model=schemas.UserBase)
+def logout(request: Request, response: Response, db: Session= Depends(get_db)):
+    db_session = crud.get_session_by_session_id(db, session_id= request.cookies.get("session_id"))
     
-    if db_user:
-        if db_user.session_id == request.cookies.get("session_id"):
-            crud.set_cookie(db,db_user.name)
-            return db_user
-        raise HTTPException(status_code=400, detail="No permission")
-    
-    raise HTTPException(status_code=400, detail="No account")
+    if db_session:
+        crud.set_cookie(db= db,session= db_session, last_access=get_current_timestr())
+        return db_session.owner
+    raise HTTPException(status_code=400, detail="No Account")
 
 
 ### Course-function
@@ -136,46 +152,58 @@ def update_course(course : schemas.SearchInfo, db : Session = Depends(get_db)):
     
 ### Timetable-function
 # timetable 불러오기
-@app.get("/timetable/{name}", response_model=schemas.TimeTable)
-def read_timetable(name : str, db: Session = Depends(get_db)):
-    timetable = crud.get_timetable(db=db,name=name)
+@app.get("/timetable/{id}", response_model=schemas.TimeTable)
+def read_timetable(id : str, db: Session = Depends(get_db)):
+    timetable = crud.get_timetable(db=db,id=id)
     if timetable:
         return timetable
     raise HTTPException(status_code=400, detail="No timetable")
 
 # timetable 생성
 @app.post("/timetable/", response_model = schemas.TimeTable)
-def create_timetable(info: schemas.SearchInfo, request: Request, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_name(db, name=info.name)
+def create_timetable(request: Request, response: Response, db: Session = Depends(get_db)):
+    session_id = request.cookies.get('session_id')
+    db_session = crud.get_session_by_session_id(db, session_id=session_id)
     
-    if not db_user is None:
-        if request.cookies.get("session_id") != db_user.session_id:
-            raise HTTPException(status_code=400, detail="Invalid access")
+    if verify_session(session_id, db_session) == False:
+        raise HTTPException(status_code=400, detail='session expired')
     
-        db_timetable = crud.get_timetable(db, name=info.name)
-    
-        if db_timetable:
+    if db_session:
+        if db_session.owner.timetable:
             raise HTTPException(status_code=400, detail="Timetable already existed")
-        return crud.create_timetable(db=db, name=info.name)
+        
+        timetable = crud.create_timetable(db=db, id=db_session.owner.id)
+        crud.set_cookie(db= db, session=db_session, last_access=get_current_timestr())
+        response.set_cookie(key='session_id', value=db_session.session_id)
+        
+        return timetable
     raise HTTPException(status_code=400, detail="No account")
 
 # timetable 수정 / add, drop
 @app.put("/timetable/")
-def add_course(course_info : schemas.UpdateTimeTable, request: Request, db : Session = Depends(get_db)):
-    db_user = crud.get_user_by_name(db, name=course_info.stu_name)
+def add_course(course_info : schemas.UpdateTimeTable, request: Request, response: Response, db : Session = Depends(get_db)):
+    session_id = request.cookies.get('session_id')
+    db_session = crud.get_session_by_session_id(db= db, session_id=session_id)
     
-    if db_user:
-        if request.cookies.get("session_id") != db_user.session_id:
-            raise HTTPException(status_code=400, detail="Invalid access")
+
     
+    if db_session:
+        if verify_session(session_id, db_session) == False:
+            raise HTTPException(status_code=400, detail='session expired')
         db_course = crud.get_course(db, code=course_info.code)
         
         if not db_course:
             raise HTTPException(status_code=400, detail="Course not exist")
         if course_info.method.lower() == "add":
-            return crud.add_course(db, course=db_course, stu_name=course_info.stu_name)
+            timetable = crud.add_course(db, course=db_course, user= db_session.owner)
+            crud.set_cookie(db= db, session=db_session, last_access=get_current_timestr())
+            response.set_cookie(key='session_id', value=db_session.session_id)
+            return timetable
         elif course_info.method.lower() == "drop":
-            return crud.drop_course(db, course=db_course, stu_name=course_info.stu_name)
+            timetable = crud.drop_course(db, course=db_course, user=db_session.owner)
+            crud.set_cookie(db= db, session=db_session, last_access=get_current_timestr())
+            response.set_cookie(key='session_id', value=db_session.session_id)
+            return timetable
         else:
             raise HTTPException(status_code=400, detail="Not allowed method.")
     
@@ -183,19 +211,19 @@ def add_course(course_info : schemas.UpdateTimeTable, request: Request, db : Ses
 
 # timetable 삭제
 @app.delete("/timetable/")
-def delete_timetable(info: schemas.SearchInfo, request: Request, db: Session = Depends(get_db)):
-    db_user = crud.get_user_by_name(db, name=info.name)
-    if db_user:
-        if request.cookies.get("session_id") != db_user.session_id:
-            raise HTTPException(status_code=400, detail="Invalid access")
+def delete_timetable(request: Request, response: Response,  db: Session = Depends(get_db)):
+    session_id = request.cookies.get('session_id')
+    db_session = crud.get_session_by_session_id(db, session_id=session_id)
     
-        db_timetable = crud.get_timetable(db, name=info.name)
-        if not db_timetable:
-            raise HTTPException(status_code=400, detail="Timetable does not exist")
+    if verify_session(session_id, db_session) == False:
+        raise HTTPException(status_code=400, detail='session expired')
     
-        return crud.delete_timetable(db, db_timetable)
+    if db_session:
+        if db_session.owner.timetable:
+            timetable = crud.delete_timetable(db=db, timetable=db_session.owner.timetable)
+            crud.set_cookie(db= db, session=db_session, last_access=get_current_timestr())
+            response.set_cookie(key='session_id', value=db_session.session_id)
+            return timetable
+        raise HTTPException(status_code=400, detail="Timetable does not exist")
     
     raise HTTPException(status_code=400, detail="No acount")
-        
-        
-    

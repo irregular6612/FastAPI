@@ -9,13 +9,10 @@ def create_cookie():
     source = string.ascii_letters + string.digits
     result = ''.join((random.choice(source) for i in range(10)))
     return result
-
-
-    
     
 
-def get_user(db: Session, user_id: int):
-    return db.query(models.User).filter(models.User.id == user_id).first()
+def get_user_by_id(db: Session, id: str):
+    return db.query(models.User).filter(models.User.id == id).first()
 
 def get_user_by_email(db: Session, email: str):
     return db.query(models.User).filter(models.User.email == email).first()
@@ -23,16 +20,28 @@ def get_user_by_email(db: Session, email: str):
 def get_user_by_name(db: Session, name : str):
     return db.query(models.User).filter(models.User.name == name).first()
 
-def get_cookie(db: Session, name: str):
-    db_user = get_user_by_name(db, name = name)
-    return db_user.session_id
+def get_session_by_session_id(db: Session, session_id: str):
+    return db.query(models.Session).filter(models.Session.session_id == session_id).first()
 
-def set_cookie(db: Session, name: str):
-    db_user = get_user_by_name(db, name=name)
-    db_user.session_id = create_cookie()
+def get_cookie(db: Session, id: str):
+    db_user = get_user_by_id(db, id = id)
+    return db_user.session.session_id
+
+def set_cookie(db: Session, session: schemas.Session, last_access: str):
+    session.session_id = create_cookie()
+    session.last_access = last_access
+    
     db.commit()
-    db.refresh(db_user)
-    return db_user.session_id
+    db.refresh(session)
+    return session.session_id
+ 
+def create_session(db: Session, user_id: str, last_access: str):
+    db_session = models.Session(user_id = user_id, session_id= create_cookie(), last_access= last_access)
+    db.add(db_session)
+    db.commit()
+    db.refresh(db_session)
+    
+    return db_session
 
 
 def get_users(db: Session, skip: int = 0, limit: int = 100):
@@ -40,11 +49,10 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 def create_user(db: Session, user: schemas.UserCreate):
     fake_hashed_password = user.password
-    db_user = models.User(email=user.email, hashed_password=fake_hashed_password, name=user.name, session_id = "")
+    db_user = models.User(email=user.email, password=fake_hashed_password, name=user.name, id = user.id)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
-    set_cookie(db, db_user.name)
     return db_user
 
 
@@ -96,10 +104,10 @@ def update_course(db : Session, course : schemas.Course):
     return db_course
     
 
-def get_timetable(db: Session, name : str):
-    return db.query(models.TimeTable).filter(models.TimeTable.name == name).first()
+def get_timetable(db: Session, id : str):
+    return db.query(models.TimeTable).filter(models.TimeTable.id == id).first()
     
-def create_timetable(db: Session, name: str):
+def create_timetable(db: Session, id: str):
     sample_schedules = {"Mon":["", "", "", "", ""],
                                   "Tue":["", "", "", "", ""],
                                   "Wed":["", "", "", "", ""],
@@ -107,7 +115,7 @@ def create_timetable(db: Session, name: str):
                                   "Fri":["", "", "", "", ""]
                                 }
     
-    db_timetable = models.TimeTable(name = name, schedules = sample_schedules)
+    db_timetable = models.TimeTable(id= id, schedules = sample_schedules)
     db.add(db_timetable)
     db.commit()
     db.refresh(db_timetable)
@@ -118,9 +126,9 @@ def delete_timetable(db: Session, timetable: schemas.TimeTable):
     db.commit()
     return timetable
 
-def add_course(db: Session, course : schemas.Course, stu_name: str):
+def add_course(db: Session, course : schemas.Course, user: schemas.User):
     
-    db_timetable = get_timetable(db, name=stu_name)
+    db_timetable = user.timetable
     new_timetable = copy.deepcopy(db_timetable)
         
     #check part
@@ -148,9 +156,9 @@ def add_course(db: Session, course : schemas.Course, stu_name: str):
     db.refresh(db_timetable)
     return {"status" : True, "table" : db_timetable.schedules}
 
-def drop_course(db: Session, course : schemas.Course, stu_name: str):
+def drop_course(db: Session, course : schemas.Course, user: schemas.User):
     
-    db_timetable = get_timetable(db, name=stu_name)
+    db_timetable = user.timetable
     new_timetable = copy.deepcopy(db_timetable)
     
     alreadyTaken = False
@@ -159,7 +167,7 @@ def drop_course(db: Session, course : schemas.Course, stu_name: str):
     # time : {"day" : str, "time" : str}
     for time in course.schedules:
         for idx, current_course in enumerate(new_timetable.schedules[time["day"]]):
-            if current_course == course.name:
+            if course.name in current_course:
                 alreadyTaken = True
                 new_timetable.schedules[time["day"]][idx] = ""
     

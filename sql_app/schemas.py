@@ -21,17 +21,24 @@ class Item(ItemBase):
 
 class UserBase(BaseModel):
     email: str
+    id : str
 
 class UserCreate(UserBase):
     name : str
     password: str
 
 class User(UserBase):
-    id: int
-    is_active: bool
+    is_active: bool = False
     items: list[Item] = []
     session_id : str
 
+    class Config:
+        orm_mode = True
+
+class Session(BaseModel):
+    session_id: str
+    last_access: str
+    
     class Config:
         orm_mode = True
 
@@ -54,20 +61,18 @@ class Course(CourseBase):
  
 
 class TimeTableBase(BaseModel):
-    name : str = ""
+    id : str = ""
     schedules : dict = {}
 
 class TimeTableCreate(TimeTableBase):
     pass
 
 class TimeTable(TimeTableBase):
-    id : int = 0
     class Config:
         orm_mode = True
 
 class UpdateTimeTable(BaseModel):
     method : str
-    stu_name : str
     name : Union[str, None]
     code : Union[str, None]
     
@@ -82,8 +87,8 @@ class SearchInfo(BaseModel):
         orm_mode : True
 
 class LoginForm(BaseModel):
-    name : str
-    password : Union[str, None]
+    id : str
+    password : str
     
     class Config:
         orm_mode : True

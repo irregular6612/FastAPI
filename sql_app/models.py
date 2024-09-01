@@ -8,15 +8,16 @@ from typing import List
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(Integer, primary_key=True)
+    id = Column(String, primary_key=True, unique=True)
     email = Column(String, unique=True, index=True)
     name = Column(String, index=True)
-    hashed_password = Column(String)
+    password = Column(String)
     is_active = Column(Boolean, default=True)
-    session_id = Column(String, index=True)
     
     items = relationship("Item", back_populates="owner")
-    timetable = relationship("TimeTable", back_populates="owner")
+    timetable = relationship("TimeTable", back_populates="owner", uselist=False)
+    session = relationship("Session", back_populates="owner", uselist=False)
+    
 
 
 class Item(Base):
@@ -42,8 +43,18 @@ class Course(Base):
 class TimeTable(Base):
     __tablename__ = "timetables"
     
-    id = Column(Integer, primary_key=True)
+    id = Column(String, ForeignKey("users.id"), primary_key=True)
     schedules = Column(JSON, index=True)
-    name = Column(Integer, ForeignKey("users.name"))
     
     owner = relationship("User", back_populates="timetable")
+    
+class Session(Base):
+    __tablename__ = "sessions"
+    
+    user_id = Column(String, ForeignKey("users.id"), primary_key= True)
+    session_id = Column(String, index=True)
+    last_access = Column(String, index=True)
+    
+    owner = relationship("User", back_populates="session")
+    
+    
