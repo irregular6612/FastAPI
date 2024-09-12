@@ -1,23 +1,5 @@
 from typing import Union, List, Dict
-
 from pydantic import BaseModel
-
-
-class ItemBase(BaseModel):
-    title: str
-    description: Union[str, None] = None
-
-class ItemCreate(ItemBase):
-    pass
-
-class Item(ItemBase):
-    id: int
-    owner_id: int
-
-    class Config:
-        orm_mode = True
-        
-        
 
 class UserBase(BaseModel):
     email: str
@@ -26,21 +8,23 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     name : str
     password: str
+    admin: bool
 
 class User(UserBase):
-    is_active: bool = False
-    items: list[Item] = []
-    session_id : str
+    #is_active: bool = False
+    #session_id : str
 
     class Config:
         orm_mode = True
 
+"""
 class Session(BaseModel):
     session_id: str
     last_access: str
     
     class Config:
         orm_mode = True
+"""
 
 
 
@@ -48,13 +32,14 @@ class CourseBase(BaseModel):
     code : str
     name : str    
 
-class CourseCreate(CourseBase):
-    pass
 
-class Course(CourseBase):
+class CourseCreate(CourseBase):
     division : Union[str, None]
     professor : Union[str, None]
     schedules : Union[List[Dict[str,str]], None] = []
+    
+class Course(CourseCreate):
+    
     class Config:
         orm_mode = True
         
@@ -80,8 +65,8 @@ class UpdateTimeTable(BaseModel):
         orm_mode = True
 
 class SearchInfo(BaseModel):
-    name : Union[str, None]
-    code : Union[str, None]
+    name : Union[str, None] | None
+    code : Union[str, None] | None
     
     class Config:
         orm_mode : True
@@ -92,5 +77,12 @@ class LoginForm(BaseModel):
     
     class Config:
         orm_mode : True
-    
+
+class Token(BaseModel):
+    access_token: str
+    access_time: str
+
+class TokenData(BaseModel):
+    username: str
+
     

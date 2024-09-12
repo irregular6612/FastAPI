@@ -12,23 +12,11 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     name = Column(String, index=True)
     password = Column(String)
-    is_active = Column(Boolean, default=True)
-    
-    items = relationship("Item", back_populates="owner")
+    #is_active = Column(Boolean, default=False)
+    admin = Column(Boolean, default=False)
     timetable = relationship("TimeTable", back_populates="owner", uselist=False)
-    session = relationship("Session", back_populates="owner", uselist=False)
+    #session = relationship("Session", back_populates="owner", uselist=False)
     
-
-
-class Item(Base):
-    __tablename__ = "items"
-
-    id = Column(Integer, primary_key=True)
-    title = Column(String, index=True)
-    description = Column(String, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"))
-
-    owner = relationship("User", back_populates="items")
     
 class Course(Base):
     __tablename__ = "courses"
@@ -48,6 +36,7 @@ class TimeTable(Base):
     
     owner = relationship("User", back_populates="timetable")
     
+"""
 class Session(Base):
     __tablename__ = "sessions"
     
@@ -56,5 +45,6 @@ class Session(Base):
     last_access = Column(String, index=True)
     
     owner = relationship("User", back_populates="session")
+"""
     
     

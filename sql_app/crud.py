@@ -20,6 +20,7 @@ def get_user_by_email(db: Session, email: str):
 def get_user_by_name(db: Session, name : str):
     return db.query(models.User).filter(models.User.name == name).first()
 
+"""
 def get_session_by_session_id(db: Session, session_id: str):
     return db.query(models.Session).filter(models.Session.session_id == session_id).first()
 
@@ -42,6 +43,7 @@ def create_session(db: Session, user_id: str, last_access: str):
     db.refresh(db_session)
     
     return db_session
+"""
 
 
 def get_users(db: Session, skip: int = 0, limit: int = 100):
@@ -49,23 +51,23 @@ def get_users(db: Session, skip: int = 0, limit: int = 100):
 
 def create_user(db: Session, user: schemas.UserCreate):
     fake_hashed_password = user.password
-    db_user = models.User(email=user.email, password=fake_hashed_password, name=user.name, id = user.id)
+    db_user = models.User(email=user.email, password=fake_hashed_password, name=user.name, id = user.id, admin=user.admin)
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
     return db_user
 
-
-
-def get_items(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Item).offset(skip).limit(limit).all()
-
-def create_user_item(db: Session, item: schemas.ItemCreate, user_id: int):
-    db_item = models.Item(**item.dict(), owner_id=user_id)
-    db.add(db_item)
+def user_activate(db: Session, user: schemas.User):
+    user.is_active = True
     db.commit()
-    db.refresh(db_item)
-    return db_item
+    db.refresh(user)
+    return user
+
+def user_deactivate(db: Session, user: schemas.User):
+    user.is_active = False
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 def get_course(db : Session, code : str):
